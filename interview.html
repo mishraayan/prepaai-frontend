@@ -105,8 +105,10 @@ recognition.continuous = !isMobile;
       }
     }
   };
-
+let micActive = false;
  async function startListening() {
+   if (micActive) return; // prevent duplicate starts
+  micActive = true;
   document.getElementById('spinner').classList.add('d-none');
   document.getElementById('statusText').innerText = '🎙️ Listening...';
   document.getElementById('progressBar').style.width = '0%';
@@ -151,11 +153,6 @@ recognition.onstart = () => {
   }
 
   recognition.onend = async () => {
-     if (isMobile && !finalTranscript.trim()) {
-    console.warn("🎙️ Restarting recognition due to mobile early cutoff...");
-    recognition.start();
-    return;
-  }
   const answer = finalTranscript.trim();
   finalTranscript = '';
 
