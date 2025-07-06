@@ -105,35 +105,39 @@
     }
   };
 
-  async function startListening() {
-    finalTranscript = '';
-    progress = 0;
+ async function startListening() {
+  document.getElementById('spinner').classList.add('d-none');
+  document.getElementById('statusText').innerText = '🎙️ Listening...';
+  document.getElementById('progressBar').style.width = '0%';
 
-    // Spinner off, mic mode
-    document.getElementById('spinner').classList.add('d-none');
-    document.getElementById('statusText').innerText = '🎙️ Listening...';
-    document.getElementById('progressBar').style.width = '0%';
+  mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  analyser = audioCtx.createAnalyser();
+  analyser.fftSize = 2048;
+  dataArray = new Uint8Array(analyser.frequencyBinCount);
+  source = audioCtx.createMediaStreamSource(mediaStream);
+  source.connect(analyser);
 
-    // Progress bar
-    progressInterval = setInterval(() => {
-      progress += 1;
-      document.getElementById('progressBar').style.width = `${progress}%`;
-      if (progress >= 100) clearInterval(progressInterval);
-    }, 300); // ~15s
+  recognition.start();// This will trigger `onstart`
 
-    // Audio waveform
-    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 2048;
-    dataArray = new Uint8Array(analyser.frequencyBinCount);
-    source = audioCtx.createMediaStreamSource(mediaStream);
-    source.connect(analyser);
-    drawWaveform();
+}
+recognition.onstart = () => {
+  finalTranscript = ''; // ✅ Reset transcript only when mic starts
 
-    recognition.start();
-    setTimeout(stopListening, 30000);
-  }
+  drawWaveform();       // ✅ Start waveform
+
+  progress = 0;
+  progressInterval = setInterval(() => {
+    progress += 1;
+    document.getElementById('progressBar').style.width = `${progress}%`;
+    if (progress >= 100) clearInterval(progressInterval);
+  }, 300); // ~30s
+
+  // ✅ Automatically stop listening after 30s
+  setTimeout(stopListening, 30000);
+
+  console.log("🎤 Mic started and listening...");
+};
 
   function stopListening() {
     recognition.stop();
@@ -146,7 +150,6 @@
   }
 
   recognition.onend = async () => {
-  recognition.abort();
   const answer = finalTranscript.trim();
   finalTranscript = '';
 
