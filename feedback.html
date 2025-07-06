@@ -74,7 +74,7 @@
 
   <script>
     const token = localStorage.getItem('token');
-    const backendURL = 'https://prepaai-backend.onrender.com/';
+    const backendURL = 'https://prepaai-backend.onrender.com';
 
     async function loadFeedback() {
       const res = await fetch(`${backendURL}/api/interview/feedback`, {
