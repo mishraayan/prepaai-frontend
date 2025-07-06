@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Interview - PrepaAI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <style>
+    body {
+      background: #1e1e2f;
+      color: white;
+    }
+    .mic-btn {
+      border-radius: 50%;
+      width: 80px;
+      height: 80px;
+      font-size: 24px;
+    }
+    #waveform {
+      width: 100%;
+      height: 80px;
+      background: #12121c;
+      border: 1px solid #444;
+      margin-top: 10px;
+    }
+    .spinner-border {
+      width: 2rem;
+      height: 2rem;
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body class="d-flex align-items-center justify-content-center vh-100 text-center">
+
+  <div class="container">
+    <h2 class="mb-4">🎙️ AI Interview in Progress</h2>
+
+    <div class="card p-4 bg-dark text-white shadow-lg">
+      <p id="ai-question" class="fs-4 fw-bold mb-4">Loading question...</p>
+
+      <canvas id="waveform"></canvas>
+
+      <div class="progress mt-3" style="height: 6px;">
+        <div id="progressBar" class="progress-bar bg-success" role="progressbar" style="width: 0%"></div>
+      </div>
+
+      <div class="mt-3">
+        <div id="spinner" class="spinner-border text-info d-none" role="status"></div>
+        <p id="statusText">Click the mic and start speaking...</p>
+      </div>
+
+      <div class="mt-4">
+        <h5 class="text-info">Your Answer:</h5>
+        <p id="userAnswer" class="text-light"></p>
+      </div>
+    </div>
+  </div>
+
+<script>
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const recognition = new SpeechRecognition();
+  recognition.continuous = true;
+  recognition.interimResults = false;
+  recognition.lang = 'en-US';
+
+  let finalTranscript = '';
+  let currentQuestionIndex = 0;
+  let questions = JSON.parse(localStorage.getItem('questions')) || [];
+
+  let audioCtx, analyser, dataArray, source, mediaStream, animationId;
+  let progress = 0, progressInterval;
+
+  const canvas = document.getElementById("waveform");
+  const ctx = canvas.getContext("2d");
+
+  function drawWaveform() {
+    if (!analyser) return;
+    animationId = requestAnimationFrame(drawWaveform);
+    analyser.getByteTimeDomainData(dataArray);
+    ctx.fillStyle = "#12121c";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#00ffcc";
+    ctx.beginPath();
+
+    const sliceWidth = canvas.width / dataArray.length;
+    let x = 0;
+
+    for (let i = 0; i < dataArray.length; i++) {
+      const v = dataArray[i] / 128.0;
+      const y = v * canvas.height / 2;
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      x += sliceWidth;
+    }
+
+    ctx.lineTo(canvas.width, canvas.height / 2);
+    ctx.stroke();
+  }
+
+  recognition.onresult = (event) => {
+    for (let i = event.resultIndex; i < event.results.length; ++i) {
+      if (event.results[i].isFinal) {
+        finalTranscript += event.results[i][0].transcript;
+      }
+    }
+  };
+
+  async function startListening() {
+    finalTranscript = '';
+    progress = 0;
+
+    // Spinner off, mic mode
+    document.getElementById('spinner').classList.add('d-none');
+    document.getElementById('statusText').innerText = '🎙️ Listening...';
+    document.getElementById('progressBar').style.width = '0%';
+
+    // Progress bar
+    progressInterval = setInterval(() => {
+      progress += 1;
+      document.getElementById('progressBar').style.width = `${progress}%`;
+      if (progress >= 100) clearInterval(progressInterval);
+    }, 300); // ~15s
+
+    // Audio waveform
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 2048;
+    dataArray = new Uint8Array(analyser.frequencyBinCount);
+    source = audioCtx.createMediaStreamSource(mediaStream);
+    source.connect(analyser);
+    drawWaveform();
+
+    recognition.start();
+    setTimeout(stopListening, 30000);
+  }
+
+  function stopListening() {
+    recognition.stop();
+    if (mediaStream) mediaStream.getTracks().forEach(track => track.stop());
+    if (audioCtx) audioCtx.close();
+    cancelAnimationFrame(animationId);
+    clearInterval(progressInterval);
+    document.getElementById('statusText').innerText = '⏹️ Stopped, analyzing...';
+    document.getElementById('spinner').classList.remove('d-none');
+  }
+
+  recognition.onend = async () => {
+  recognition.abort();
+  const answer = finalTranscript.trim();
+  finalTranscript = '';
+
+  const token = localStorage.getItem('token');
+
+  // ✅ Skip if no more questions
+  if (currentQuestionIndex >= questions.length) {
+    console.warn("⚠️ No more questions to process.");
+    return;
+  }
+
+  const question = questions[currentQuestionIndex];
+  document.getElementById('userAnswer').innerText = answer || "(no answer detected)";
+
+  try {
+    const res = await fetch('https://prepaai-backend.onrender.com/api/interview/answer', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ question, answer })
+    });
+
+    const data = await res.json();
+    document.getElementById('spinner').classList.add('d-none');
+
+    const feedback = data.feedback;
+    const utterFeedback = new SpeechSynthesisUtterance(feedback);
+    speechSynthesis.speak(utterFeedback);
+
+    currentQuestionIndex++;
+
+    if (currentQuestionIndex < questions.length) {
+      setTimeout(() => askQuestion(currentQuestionIndex), 5000);
+    } else {
+      document.getElementById('ai-question').innerText = '🎉 Interview Complete!';
+      document.getElementById('statusText').innerText = '✅ Your interview is complete.';
+      setTimeout(() => {
+        window.location.href = 'feedback.html';
+      }, 6000);
+    }
+  } catch (err) {
+    document.getElementById('statusText').innerText = "❌ Failed to get feedback from AI.";
+    document.getElementById('spinner').classList.add('d-none');
+    console.error(err);
+  }
+};
+
+
+  function askQuestion(index) {
+  let q = questions[index];
+
+  // Clean markdown from AI question (bold, code, etc)
+  q = q.replace(/\*\*(.*?)\*\*/g, '$1')      // remove **bold**
+       .replace(/`(.*?)`/g, '$1')            // remove `code`
+       .replace(/^#+\s?/gm, '')              // remove headings
+       .replace(/-{3,}/g, '');               // remove dividers
+
+  document.getElementById('ai-question').innerText = q;
+
+  const utter = new SpeechSynthesisUtterance(q);
+  utter.onend = () => setTimeout(startListening, 500);  // Add slight delay
+  speechSynthesis.speak(utter);
+}
+
+
+  window.onload = () => {
+    if (!questions.length) {
+      document.getElementById('ai-question').innerText = '❌ No questions found. Please restart from dashboard.';
+      document.getElementById('micButton').disabled = true;
+      return;
+    }
+    askQuestion(currentQuestionIndex);
+  };
+
+</script>
+
+</body>
+</html>

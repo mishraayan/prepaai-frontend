@@ -1,0 +1,129 @@
+<!-- dashboard.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard - PrepaAI</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+
+  <style>
+  body {
+    background: linear-gradient(to right, #000428, #004e92);
+    color: white;
+    font-family: 'Segoe UI', sans-serif;
+  }
+
+  .card {
+    background-color: rgba(255, 255, 255, 0.05);
+    border-radius: 1rem;
+    backdrop-filter: blur(10px);
+    padding: 2rem;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+  }
+
+  .form-label {
+    color: #f8f9fa;
+    font-weight: 500;
+  }
+
+  .form-control,
+  .form-select {
+    background-color: rgba(255, 255, 255, 0.12);
+    color: #ffffff;
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    border-radius: 0.5rem;
+    padding: 0.6rem 1rem;
+  }
+
+  .form-control::placeholder {
+    color: #dddddd;
+  }
+
+  .form-select option {
+    background-color: #000428;
+    color: white;
+  }
+
+  .btn-primary {
+    background-color: #be15b0;
+    border-color: #be15b0;
+  }
+
+  .btn-primary:hover {
+    background-color: #9b118f;
+    border-color: #9b118f;
+  }
+</style>
+
+</head>
+<body class="d-flex align-items-center justify-content-center vh-100">
+
+  <div class="card p-5 shadow-lg" style="max-width: 500px; width: 100%;">
+    <h2 class="text-center mb-4">Start Interview</h2>
+    <a href="history.html" class="btn btn-outline-info btn-lg shadow-sm">
+  <i class="bi bi-clock-history"></i> View Past Interviews
+</a>
+
+    <form id="interviewForm">
+      <div class="mb-3">
+        <label for="topic" class="form-label">Choose Topic</label>
+        <input type="text" class="form-control" id="topic" placeholder="e.g., Operating Systems" required />
+      </div>
+      <div class="mb-3">
+  <label for="numQuestions" class="form-label text-light">Number of Questions</label>
+  <select class="form-select" id="numQuestions" required>
+    <option value="" disabled selected>Select number</option>
+    <option value="3">3 Questions</option>
+    <option value="5">5 Questions</option>
+    <option value="7">7 Questions</option>
+    <option value="10">10 Questions</option>
+  </select>
+</div>
+
+      <button type="submit" class="btn btn-warning w-100">Start Interview 🎤</button>
+    </form>
+  </div>
+
+  <script>
+    const interviewForm = document.getElementById('interviewForm');
+
+    interviewForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const topic = document.getElementById('topic').value;
+      const numQuestions = document.getElementById('numQuestions').value;
+      const token = localStorage.getItem('token');
+
+      if (!token) {
+        alert("Please login first.");
+        window.location.href = 'login.html';
+        return;
+      }
+
+      try {
+        const res = await fetch('https://prepaai-backend.onrender.com/api/interview/start', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({ topic, numQuestions })
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          localStorage.setItem('questions', JSON.stringify(data.questions));
+          localStorage.setItem('currentQuestion', '0');
+          window.location.href = 'interview.html';
+        } else {
+          alert(data.message || 'Error starting interview');
+        }
+      } catch (err) {
+        alert("Something went wrong");
+      }
+    });
+  </script>
+</body>
+</html>

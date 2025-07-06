@@ -1,0 +1,157 @@
+<!-- feedback.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Interview Feedback - PrepaAI</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+ <style>
+  body {
+    background: linear-gradient(to right, #1a1a2e, #16213e);
+    color: #f8f9fa;
+  }
+
+  .card {
+    background-color: #262a3f; /* Brighter and solid dark */
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1rem;
+    backdrop-filter: blur(8px);
+    color: #e0e0e0;
+    transition: transform 0.2s ease;
+  }
+
+  .card:hover {
+    transform: scale(1.01);
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  }
+
+  .score {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #ffb347; /* orange-yellow */
+  }
+
+  .feedback-block {
+    white-space: pre-wrap;
+    font-size: 1rem;
+    line-height: 1.5;
+    color: #d4d4d4;
+  }
+
+  .card h5 {
+    color: #00d4ff; /* bright cyan */
+  }
+
+  strong {
+    color: #ffffff;
+  }
+
+  .btn-outline-light {
+    border-color: #ffffff;
+    color: #ffffff;
+  }
+
+  .btn-outline-light:hover {
+    background-color: #ffffff;
+    color: #111;
+  }
+</style>
+
+</head>
+<body class="p-4">
+
+  <div class="container">
+    <h2 class="text-center mb-4">📊 Interview Feedback</h2>
+    <div id="feedbackList" class="row g-4">
+      <!-- Feedback cards will be injected here -->
+    </div>
+    <div class="text-center mt-4">
+      <button class="btn btn-outline-light" onclick="downloadPDF()">📥 Download Feedback as PDF</button>
+    </div>
+  </div>
+
+  <script>
+    const token = localStorage.getItem('token');
+    const backendURL = 'https://prepaai-backend.onrender.com/';
+
+    async function loadFeedback() {
+      const res = await fetch(`${backendURL}/api/interview/feedback`, {
+        method: 'GET',
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const data = await res.json();
+      const list = document.getElementById('feedbackList');
+
+      if (!data.feedbacks || data.feedbacks.length === 0) {
+        list.innerHTML = `<p class="text-center">No feedback found.</p>`;
+        return;
+      }
+
+      data.feedbacks.forEach((fb, i) => {
+        const card = document.createElement('div');
+        card.className = 'col-md-6';
+        card.innerHTML = `
+          <div class="card p-4 shadow-sm h-100">
+            <h5>Q${i + 1}: ${fb.question}</h5>
+            <p><strong>Your Answer:</strong> ${fb.answer}</p>
+            <p class="score text-warning">Score: ${fb.score ?? 'N/A'}/10</p>
+            <div class="feedback-block border-top pt-2">
+              <strong>AI Feedback:</strong><br>${fb.feedback}
+            </div>
+          </div>
+        `;
+        list.appendChild(card);
+      });
+    }
+
+    loadFeedback();
+
+    async function downloadPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF();
+
+      const res = await fetch(`${backendURL}/api/interview/feedback`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+
+      const data = await res.json();
+      const feedbacks = data.feedbacks;
+
+      doc.setFontSize(16);
+      doc.text('PrepaAI - Interview Feedback', 10, 15);
+      doc.setFontSize(12);
+
+      let y = 25;
+
+      if (!feedbacks || feedbacks.length === 0) {
+        doc.text("No feedback found.", 10, y);
+        doc.save('prepaai-feedback.pdf');
+        return;
+      }
+
+      feedbacks.forEach((fb, index) => {
+        const q = `Q${index + 1}: ${fb.question}`;
+        const a = `Answer: ${fb.answer}`;
+        const s = `Score: ${fb.score ?? 'N/A'}/10`;
+        const f = `Feedback: ${fb.feedback}`;
+
+        [q, ...doc.splitTextToSize(a, 180), s, ...doc.splitTextToSize(f, 180)].forEach(text => {
+          doc.text(text, 10, y);
+          y += 7;
+        });
+
+        y += 10;
+        if (y > 280) {
+          doc.addPage();
+          y = 15;
+        }
+      });
+
+      doc.save('prepaai-feedback.pdf');
+    }
+  </script>
+</body>
+</html>
