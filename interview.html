@@ -59,7 +59,8 @@
 <script>
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
   const recognition = new SpeechRecognition();
-  recognition.continuous = true;
+  const isMobile = /Mobi|Android/i.test(navigator.userAgent);
+recognition.continuous = !isMobile;
   recognition.interimResults = false;
   recognition.lang = 'en-US';
 
@@ -150,6 +151,11 @@ recognition.onstart = () => {
   }
 
   recognition.onend = async () => {
+     if (isMobile && !finalTranscript.trim()) {
+    console.warn("🎙️ Restarting recognition due to mobile early cutoff...");
+    recognition.start();
+    return;
+  }
   const answer = finalTranscript.trim();
   finalTranscript = '';
 
